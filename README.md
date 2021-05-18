@@ -21,6 +21,9 @@ https://github.com/matthew-carroll/flutter_ui_challenge_zoom_menu
 
 ### NEW UPDATES
 ---
+**Version 2.0**
+- Sound null-safety
+---
 **Version 1.0**
 - Elevation Config
 - 3D effect
@@ -37,6 +40,7 @@ https://github.com/matthew-carroll/flutter_ui_challenge_zoom_menu
 ## Table of contents
 - [Usage](#usage)
 - [Example](#example)
+- [Migration (Null-safety Release)](#migration-null-safety-release)
 - [Migration](#migration)
 - [Preview](#preview)
 - [Customize](#customize)
@@ -88,7 +92,7 @@ class DrawerScale extends StatefulWidget {
 }
 
 class _DrawerScaleState extends State<DrawerScale> {
-  int selectedMenuItemId;
+  late int selectedMenuItemId;
 
   @override
   void initState() {
@@ -131,8 +135,23 @@ class _DrawerScaleState extends State<DrawerScale> {
 
 
 ```
-
-
+## Migration (Null-safety Release)
+---
+### mainDrawer (DrawerScaffold) -> defaultDirection (DrawerScaffold)
+```dart
+new DrawerScaffold(
+  mainDrawer: Direction.right,
+  ...
+);
+```
+**to**
+```dart
+new DrawerScaffold(
+  defaultDirection: Direction.right,
+  ...
+);
+```
+---
 
 ## Migration
 ---
@@ -188,7 +207,7 @@ drawers: [
 
 
 ---
-### percentage (DrawerScaffold -> drawers (List\<SideDrawer>))
+### percentage (DrawerScaffold) -> drawers (List\<SideDrawer>))
 ```dart
 DrawerScaffold(
   percentage: 0.6,
@@ -282,20 +301,24 @@ new DrawerScaffold(
 ```dart
 new DrawerScaffold(
   headerView: headerView(context),
-  itemBuilder:
-      (BuildContext context, MenuItem menuItem, bool isSelected) {
-    return Container(
-      color: isSelected
-          ? Theme.of(context).accentColor.withOpacity(0.7)
-          : Colors.transparent,
-      padding: EdgeInsets.fromLTRB(24, 16, 24, 16),
-      child: Text(
-        menuItem.title,
-        style: Theme.of(context).textTheme.subhead.copyWith(
-            color: isSelected ? Colors.black87 : Colors.white70),
-      ),
-    );
-  }
+  drawers: [
+      SideDrawer(
+        itemBuilder:
+            (BuildContext context, MenuItem menuItem, bool isSelected) {
+          return Container(
+            color: isSelected
+                ? Theme.of(context).accentColor.withOpacity(0.7)
+                : Colors.transparent,
+            padding: EdgeInsets.fromLTRB(24, 16, 24, 16),
+            child: Text(
+              menuItem.title,
+              style: Theme.of(context).textTheme.subhead?.copyWith(
+                  color: isSelected ? Colors.black87 : Colors.white70),
+            ),
+          );
+        }
+      )
+  ],
   ...
 );
 ```
@@ -309,8 +332,9 @@ DrawerScaffoldController controller;
 List<SideDrawer> drawers;
 ScreenBuilder builder;
 bool enableGestures; // default: true
-AppBar appBar;
+PreferredSizeWidget appBar;
 double cornerRadius; // default: 16
+double bacgroundColor; // default: Theme.of(context).scaffoldBackgroundColor
 Widget floatingActionButton;
 Widget bottomNavigationBar;
 FloatingActionButtonLocation floatingActionButtonLocation;
@@ -356,11 +380,14 @@ Function(BuildContext, MenuItem, bool) itemBuilder;
 
 ```
 
-*MenuItem*
+*MenuItem\<T\>*
 ```dart
-String id;
+T id;
 String title;
 IconData icon;
+Widget prefix;
+Widget suffix;
+dynamic data;
 ```
 
 ## Contributor

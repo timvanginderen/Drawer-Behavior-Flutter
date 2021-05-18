@@ -1,3 +1,30 @@
+# 2.1.2
+* Set/assign/copy missing attribute from **AppBar** 
+
+# 2.1.1
+* Change appBar parameter type to **PreferredSizeWidget**
+
+# 2.1.0
+* Prefix and suffix attribute
+
+# 2.0.0+4
+* Change minimum version for dart
+
+# 2.0.0+3
+* fix pub.dev score issue
+
+# 2.0.0+2
+* revert pubspec
+
+# 2.0.0+1
+* fix pub.dev issue
+
+# 2.0.0
+* Migrate to null safety
+* add **backgroundColor** parameter
+* change **mainDrawer** to defaultDirection
+* remove **contentView** parameter
+
 # 1.2.2
 * Add child option on [MenuScreen]
 * Animation fixed
