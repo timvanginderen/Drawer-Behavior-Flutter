@@ -2,12 +2,12 @@ import 'package:drawerbehavior/drawerbehavior.dart';
 import 'package:drawerbehavior_example/menus/main.dart';
 import 'package:flutter/material.dart';
 
-class DrawerScale extends StatefulWidget {
+class DrawerSlideMenuSlide extends StatefulWidget {
   @override
-  _DrawerScaleState createState() => _DrawerScaleState();
+  _DrawerSlideMenuSlideState createState() => _DrawerSlideMenuSlideState();
 }
 
-class _DrawerScaleState extends State<DrawerScale> {
+class _DrawerSlideMenuSlideState extends State<DrawerSlideMenuSlide> {
   int selectedMenuItemId;
 
   @override
@@ -20,24 +20,16 @@ class _DrawerScaleState extends State<DrawerScale> {
   Widget build(BuildContext context) {
     return DrawerScaffold(
       appBar: AppBar(
-          title: Text("Drawer - Scale"),
+          title: Text("Drawer and Menu - Slide"),
           actions: [IconButton(icon: Icon(Icons.add), onPressed: () {})]),
-      onSlide: (drawer, value) {
-        debugPrint("[LOG] Drawer ${drawer.direction} $value");
-      },
-      onOpened: (drawer) {
-        debugPrint("[LOG] Drawer ${drawer.direction} opened");
-      },
-      onClosed: (drawer) {
-        debugPrint("[LOG] Drawer ${drawer.direction} closed");
-      },
       drawers: [
         SideDrawer(
-          percentage: 0.6,
+          percentage: 1,
+          slide: true,
+          textStyle: TextStyle(color: Colors.white, fontSize: 24.0),
           menu: menu,
-          direction: Direction.left,
-          animation: true,
-          // alignment: Alignment.topLeft,
+          animation: false,
+          alignment: Alignment.topLeft,
           color: Theme.of(context).primaryColor,
           selectedItemId: selectedMenuItemId,
           onMenuItemSelected: (itemId) {

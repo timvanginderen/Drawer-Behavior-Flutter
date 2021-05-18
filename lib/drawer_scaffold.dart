@@ -86,6 +86,20 @@ class DrawerScaffold extends StatefulWidget {
 
   @override
   _DrawerScaffoldState createState() => new _DrawerScaffoldState();
+
+  static MenuController currentController(BuildContext context,
+      {bool nullOk = true}) {
+    assert(nullOk != null);
+    assert(context != null);
+    final _DrawerScaffoldState result =
+        context.findAncestorStateOfType<_DrawerScaffoldState>();
+    if (nullOk || result != null) return result._controller;
+    throw FlutterError.fromParts(<DiagnosticsNode>[
+      ErrorSummary(
+          '_SideDrawerState.of() called with a context that does not contain a MenuController.'),
+      context.describeElement('The context used was')
+    ]);
+  }
 }
 
 class _DrawerScaffoldState<T> extends State<DrawerScaffold>
@@ -132,28 +146,39 @@ class _DrawerScaffoldState<T> extends State<DrawerScaffold>
 
   @override
   void dispose() {
-    menuControllers.map((e) => e.dispose());
     super.dispose();
   }
 
   @override
   void didUpdateWidget(Widget oldWidget) {
     assignContoller();
-
     super.didUpdateWidget(oldWidget);
   }
 
   MenuController createController(SideDrawer d) {
-    return MenuController(
-      d.direction,
-      d.duration,
+    MenuController controller = dcreateController(
+      context,
+      d,
+      this,
       (value) {
         widget.onSlide?.call(d, value);
         if (value == 0) widget.onClosed?.call(d);
         if (value == 1) widget.onOpened?.call(d);
       },
-      vsync: this,
     )..addListener(() => setState(() {}));
+    return controller;
+  }
+
+  MenuController dcreateController(BuildContext context, SideDrawer d,
+      TickerProvider vsync, Function(double) onAnimated) {
+    MenuController controller = MenuController(
+      d,
+      onAnimated,
+      context: context,
+      vsync: vsync,
+    );
+
+    return controller;
   }
 
   assignContoller() {
@@ -163,7 +188,7 @@ class _DrawerScaffoldState<T> extends State<DrawerScaffold>
       for (var i = 0;
           i < widget.drawers.length && i < menuControllers.length;
           i++) {
-        menuControllers[i].direction = widget.drawers[i].direction;
+        menuControllers[i]._drawer = widget.drawers[i];
       }
     for (var i = menuControllers.length; i < widget.drawers.length; i++) {
       menuControllers.add(createController(widget.drawers[i]));
@@ -180,8 +205,8 @@ class _DrawerScaffoldState<T> extends State<DrawerScaffold>
     if (widget.controller != null) {
       if (widget.controller._open != null)
         menuControllers
-            .firstWhere(
-                (element) => element.direction == widget.controller._open)
+            .firstWhere((element) =>
+                element._drawer.direction == widget.controller._open)
             .open();
       else
         menuControllers.forEach((element) {
@@ -239,7 +264,7 @@ class _DrawerScaffoldState<T> extends State<DrawerScaffold>
 
   int drawerFrom(Direction direction) {
     return menuControllers.indexWhere((element) {
-      return element.direction == direction;
+      return element._drawer.direction == direction;
     });
   }
 
@@ -265,7 +290,7 @@ class _DrawerScaffoldState<T> extends State<DrawerScaffold>
       persistentFooterButtons: widget.persistentFooterButtons,
       primary: widget.primary,
       resizeToAvoidBottomInset: widget.resizeToAvoidBottomInset,
-      resizeToAvoidBottomPadding: widget.resizeToAvoidBottomPadding,
+      // resizeToAvoidBottomPadding: widget.resizeToAvoidBottomPadding,
     );
 
     double maxSlideAmount =
@@ -319,7 +344,7 @@ class _DrawerScaffoldState<T> extends State<DrawerScaffold>
 
               double dx = (details.globalPosition.dx - startDx);
               MenuController menuController = menuControllers[focusDrawerIndex];
-              if (menuController.direction == Direction.right) {
+              if (menuController._drawer.direction == Direction.right) {
                 dx = -dx;
               }
               if (isOpening && dx > 0 && dx <= maxSlideAmount) {
@@ -378,40 +403,12 @@ class _DrawerScaffoldState<T> extends State<DrawerScaffold>
 
   zoomAndSlideContent(Widget content) {
     SideDrawer drawer = widget.drawers[focusDrawerIndex];
-    double maxSlideAmount = drawer.maxSlideAmount(context);
     MenuController menuController = this.menuControllers[focusDrawerIndex];
-    var slidePercent, scalePercent;
-    switch (menuController.state) {
-      case MenuState.closed:
-        slidePercent = 0.0;
-        scalePercent = 0.0;
-        break;
-      case MenuState.open:
-        slidePercent = 1.0;
-        scalePercent = 1.0;
-        break;
-      case MenuState.opening:
-        slidePercent = slideOutCurve.transform(menuController.percentOpen);
-        scalePercent = scaleDownCurve.transform(menuController.percentOpen);
-        break;
-      case MenuState.closing:
-        slidePercent = slideInCurve.transform(menuController.percentOpen);
-        scalePercent = scaleUpCurve.transform(menuController.percentOpen);
-        break;
-    }
-
-    double slideAmount = maxSlideAmount * slidePercent;
-    final contentScale = 1.0 - ((1.0 - drawer.percentage) * scalePercent);
+    double slidePercent = menuController._slidePercent;
+    double contentScale = menuController.contentScale;
+    double slideAmount = menuController.slideAmount;
     final cornerRadius = (drawer.cornerRadius ?? widget.cornerRadius) *
         menuController.percentOpen;
-
-    if (drawer.degree != null) {
-      slideAmount = slideAmount * (1 - (1 - contentScale) / 2);
-      if (widget.drawers[focusDrawerIndex].direction == Direction.right) {
-        slideAmount = -slideAmount;
-      }
-    } else if (widget.drawers[focusDrawerIndex].direction == Direction.right)
-      slideAmount = -slideAmount;
 
     double degreeAmount = (drawer.degree ?? 0) * slidePercent;
     degreeAmount = degreeAmount * pi / 180;
@@ -496,16 +493,17 @@ class _DrawerScaffoldState<T> extends State<DrawerScaffold>
 
   @override
   Widget build(BuildContext context) {
-    focusDrawerIndex = min(widget.drawers.length - 1, focusDrawerIndex);
+    focusDrawerIndex = min(
+        widget.drawers.length - 1, focusDrawerIndex ?? widget.drawers.length);
     return Stack(
       children: [
-        focusDrawerIndex != null
-            ? widget.drawers[focusDrawerIndex]
-            : Container(),
+        focusDrawerIndex >= 0 ? widget.drawers[focusDrawerIndex] : Container(),
         createContentDisplay(),
       ],
     );
   }
+
+  MenuController get _controller => menuControllers[focusDrawerIndex];
 }
 
 class DrawerScaffoldMenuController extends StatefulWidget {
@@ -555,7 +553,7 @@ class DrawerScaffoldMenuControllerState
     final scaffoldState =
         context.findAncestorStateOfType<_DrawerScaffoldState>();
     return scaffoldState.menuControllers.firstWhere(
-      (element) => element.direction == direction,
+      (element) => element._drawer.direction == direction,
       orElse: () => scaffoldState.menuControllers[0],
     );
   }
@@ -597,21 +595,26 @@ class MenuController extends ChangeNotifier {
   final TickerProvider vsync;
   final AnimationController _animationController;
   final Function(double) onAnimated;
-  Direction direction;
   Duration duration;
   MenuState state = MenuState.closed;
+  double _slidePercent = 0, _scalePercent = 0;
+  double slideAmount = 0, contentScale = 0;
 
-  MenuController(
-    this.direction,
-    Duration duration,
-    this.onAnimated, {
-    this.vsync,
-  })  : this.duration = duration ?? const Duration(milliseconds: 250),
+  SideDrawer _drawer;
+
+  double get slidePercent => _slidePercent;
+  double get scalePercent => _scalePercent;
+  MenuController(this._drawer, this.onAnimated,
+      {this.vsync, BuildContext context})
+      : this.duration = _drawer.duration ?? const Duration(milliseconds: 250),
         _animationController = new AnimationController(vsync: vsync) {
     _animationController
       ..duration = duration ?? const Duration(milliseconds: 250)
       ..addListener(() {
+        calculate(context);
+
         onAnimated(_animationController.value);
+
         notifyListeners();
       })
       ..addStatusListener((AnimationStatus status) {
@@ -632,6 +635,36 @@ class MenuController extends ChangeNotifier {
 
         notifyListeners();
       });
+    calculate(context);
+  }
+
+  calculate(BuildContext context) {
+    switch (state) {
+      case MenuState.closed:
+        _slidePercent = 0.0;
+        _scalePercent = 0.0;
+        break;
+      case MenuState.open:
+        _slidePercent = 1.0;
+        _scalePercent = 1.0;
+        break;
+      case MenuState.opening:
+        _slidePercent = _drawer.slideOutCurve.transform(percentOpen);
+        _scalePercent = _drawer.scaleDownCurve.transform(percentOpen);
+        break;
+      case MenuState.closing:
+        _slidePercent = _drawer.slideInCurve.transform(percentOpen);
+        _scalePercent = _drawer.scaleUpCurve.transform(percentOpen);
+        break;
+    }
+    contentScale = 1.0 - ((1.0 - _drawer.percentage) * scalePercent);
+    slideAmount = _drawer.maxSlideAmount(context) * slidePercent;
+    if (_drawer.degree != null) {
+      slideAmount = slideAmount * (1 - (1 - contentScale) / 2);
+      if (_drawer.direction == Direction.right) {
+        slideAmount = -slideAmount;
+      }
+    } else if (_drawer.direction == Direction.right) slideAmount = -slideAmount;
   }
 
   @override
@@ -683,7 +716,7 @@ class DrawerScaffoldController {
 
   openDrawer([Direction direction = Direction.left]) {
     int index = _menuControllers
-        .indexWhere((element) => element.direction == direction);
+        .indexWhere((element) => element._drawer.direction == direction);
     if (index >= 0) {
       _setFocus(index);
       _menuControllers[index].open();
@@ -692,14 +725,15 @@ class DrawerScaffoldController {
 
   closeDrawer([Direction direction = Direction.left]) {
     _menuControllers
-        .firstWhere((element) => element.direction == direction)
+        .firstWhere((element) => element._drawer.direction == direction)
         .close();
   }
 
   ValueChanged<bool> onToggle;
 
   bool isOpen([Direction direction = Direction.left]) => _menuControllers
-      .where((element) => element.direction == direction && element.isOpen())
+      .where((element) =>
+          element._drawer.direction == direction && element.isOpen())
       .isNotEmpty;
 }
 

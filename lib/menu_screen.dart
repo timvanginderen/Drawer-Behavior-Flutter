@@ -3,7 +3,7 @@ import 'dart:math';
 import 'package:drawerbehavior/drawer_scaffold.dart';
 import 'package:flutter/material.dart';
 
-final menuScreenKey = GlobalKey(debugLabel: 'MenuScreen');
+// final menuScreenKey = GlobalKey(debugLabel: 'MenuScreen');
 
 enum Direction {
   left,
@@ -12,6 +12,7 @@ enum Direction {
 
 typedef MenuItemBuilder<T> = Widget Function(
     BuildContext context, MenuItem<T> item, bool isSelected);
+// typedef SideDrawerItemBuilder = Function(BuildContext, MenuItem, bool);
 
 class SideDrawer<T> extends StatefulWidget {
   SideDrawer({
@@ -19,9 +20,11 @@ class SideDrawer<T> extends StatefulWidget {
     this.headerView,
     this.footerView,
     this.selectedItemId,
+    this.slide = false,
     double percentage,
     double degree,
     this.onMenuItemSelected,
+    this.child,
     this.color = Colors.white,
     this.background,
     this.gradient,
@@ -37,7 +40,10 @@ class SideDrawer<T> extends StatefulWidget {
     this.itemBuilder,
     this.elevation = 16,
     this.cornerRadius,
-  })  : this.percentage = percentage ?? 0.8,
+    Key key,
+  })  : assert((child != null && menu == null && itemBuilder == null) ||
+            (child == null && menu != null)),
+        this.percentage = percentage ?? 0.8,
         this.degree = degree == null ? null : max(min(45, degree), 15),
         this.scaleDownCurve =
             new Interval(0.0, 0.3, curve: curve ?? Curves.easeOut),
@@ -47,7 +53,7 @@ class SideDrawer<T> extends StatefulWidget {
             new Interval(0.0, 1.0, curve: curve ?? Curves.easeOut),
         this.slideInCurve =
             new Interval(0.0, 1.0, curve: curve ?? Curves.easeOut),
-        super(key: menuScreenKey);
+        super(key: key);
 
   /// Scaling Percentage base on width and height
   final double percentage;
@@ -87,6 +93,9 @@ class SideDrawer<T> extends StatefulWidget {
   /// Flag for animation on menu item
   final bool animation;
 
+  /// Flag for drawer slide with main container
+  final bool slide;
+
   /// listen to menu selected
   final Function(T) onMenuItemSelected;
 
@@ -98,6 +107,10 @@ class SideDrawer<T> extends StatefulWidget {
 
   /// Custom builder for menu item
   final MenuItemBuilder<T> itemBuilder;
+  // final SideDrawerItemBuilder itemBuilder;
+
+  /// Widget for side drawer
+  final Widget child;
 
   /// Background for drawer
   final DecorationImage background;
@@ -120,9 +133,16 @@ class SideDrawer<T> extends StatefulWidget {
   /// Menu [Padding] in drawer
   final EdgeInsets padding;
 
+  /// Easing [Curve] for scale down
   final Curve scaleDownCurve;
+
+  /// Easing [Curve] for scale up
   final Curve scaleUpCurve;
+
+  /// Easing [Curve] for slide out
   final Curve slideOutCurve;
+
+  /// Easing [Curve] for slide in
   final Curve slideInCurve;
 
   double maxSlideAmount(context) =>
@@ -142,7 +162,11 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   double get maxSlideAmount => widget.maxSlideAmount(context);
 
   setSelectedRenderBox(RenderBox newRenderBox, bool useState) async {
-    final newYTop = newRenderBox.localToGlobal(const Offset(0.0, 0.0)).dy;
+    final renderBox = context.findRenderObject() as RenderBox;
+
+    final newYTop =
+        newRenderBox.localToGlobal(Offset(0.0, 0.0), ancestor: renderBox).dy;
+
     final newYBottom = newYTop + newRenderBox.size.height;
     if (newYTop != selectorYTop) {
       selectorYTop = newYTop;
@@ -163,64 +187,26 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   Widget createMenuItems(MenuController menuController) {
     final List<Widget> listItems = [];
 
-    final animationIntervalDuration = 0.5;
-    final perListItemDelay =
-        menuController.state != MenuState.closing ? 0.15 : 0.0;
-    final millis = menuController.state != MenuState.closing
-        ? 150 * widget.menu.items.length
-        : 600;
+    if (widget.child != null) {
+      listItems.add(widget.child);
+    } else {
+      final animationIntervalDuration = 0.5;
+      final perListItemDelay =
+          menuController.state != MenuState.closing ? 0.15 : 0.0;
+      final millis = menuController.state != MenuState.closing
+          ? 150 * widget.menu.items.length
+          : 600;
 
-    final maxDuration = (widget.menu.items.length - 1) * perListItemDelay +
-        animationIntervalDuration;
-    for (var i = 0; i < widget.menu.items.length; ++i) {
-      final animationIntervalStart = i * perListItemDelay;
-      final animationIntervalEnd =
-          animationIntervalStart + animationIntervalDuration;
+      final maxDuration = (widget.menu.items.length - 1) * perListItemDelay +
+          animationIntervalDuration;
 
-      MenuItem item = widget.menu.items[i];
-
-      final isSelected = item.id == widget.selectedItemId;
-
-      Function onTap = () {
-        widget.onMenuItemSelected(item.id);
-        menuController.close();
-      };
-      Widget listItem = widget.itemBuilder == null
-          ? _MenuListItem(
-              padding: const EdgeInsets.only(left: 32.0),
-              direction: widget.direction,
-              title: item.title,
-              isSelected: isSelected,
-              selectorColor: selectorColor,
-              textStyle: textStyle,
-              menuView: widget,
-              width: maxSlideAmount,
-              icon: item.icon?.call(),
-              onTap: onTap,
-              drawBorder: !widget.animation,
-            )
-          : Container(
-              alignment: Alignment.centerLeft,
-              child: Container(
-                child: InkWell(
-                    onTap: onTap,
-                    child: widget.itemBuilder(context, item, isSelected)),
-                width: maxSlideAmount,
-              ),
-            );
-
-      if (widget.animation)
-        listItems.add(AnimatedMenuListItem(
-          menuState: menuController.state,
-          isSelected: isSelected,
-          duration: Duration(milliseconds: millis),
-          curve: Interval(animationIntervalStart / maxDuration,
-              animationIntervalEnd / maxDuration,
-              curve: Curves.easeOut),
-          menuListItem: listItem,
-        ));
-      else {
-        listItems.add(listItem);
+      for (var i = 0; i < widget.menu.items.length; ++i) {
+        final animationIntervalStart = i * perListItemDelay;
+        final animationIntervalEnd =
+            animationIntervalStart + animationIntervalDuration;
+        MenuItem item = widget.menu.items[i];
+        listItems.add(buildListItem(menuController, item,
+            animationIntervalStart, animationIntervalEnd, millis, maxDuration));
       }
     }
 
@@ -249,6 +235,60 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     );
   }
 
+  buildListItem(
+    MenuController menuController,
+    MenuItem item,
+    double animationIntervalStart,
+    double animationIntervalEnd,
+    int millis,
+    double maxDuration,
+  ) {
+    final isSelected = item.id == widget.selectedItemId;
+
+    Function onTap = () {
+      widget.onMenuItemSelected(item.id);
+      menuController.close();
+    };
+    Widget listItem = widget.itemBuilder == null
+        ? _MenuListItem(
+            padding: const EdgeInsets.only(left: 32.0),
+            direction: widget.direction,
+            title: item.title,
+            isSelected: isSelected,
+            selectorColor: selectorColor,
+            textStyle: textStyle,
+            menuView: widget,
+            width: maxSlideAmount,
+            icon: item.icon == null ? null : item.icon.call(),
+            onTap: onTap,
+            drawBorder: !widget.animation,
+          )
+        : InkWell(
+            child: Container(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                child: widget.itemBuilder(context, item, isSelected),
+                width: maxSlideAmount,
+              ),
+            ),
+            onTap: onTap,
+          );
+
+    if (widget.animation)
+      return AnimatedMenuListItem(
+        menuState: menuController.state,
+        isSelected: isSelected,
+        duration: Duration(milliseconds: millis),
+        curve: Interval(animationIntervalStart / maxDuration,
+            animationIntervalEnd / maxDuration,
+            curve: Curves.easeOut),
+        menuListItem: listItem,
+      );
+    else {
+      return listItem;
+    }
+  }
+
   Widget createDrawer(MenuController menuController) {
     List<Widget> widgets = [];
     if (widget.headerView != null) {
@@ -266,9 +306,14 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
         margin: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
       ));
     }
+    MenuController controller = DrawerScaffold.currentController(context);
     return Transform(
       transform: Matrix4.translationValues(
-        0.0,
+        widget.slide
+            ? (widget.direction == Direction.left ? 1 : -1) *
+                widget.maxSlideAmount(context) *
+                (controller.slidePercent - 1)
+            : 0,
         MediaQuery.of(context).padding.top,
         0.0,
       ),
@@ -314,6 +359,19 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
             ),
           );
         });
+  }
+
+  static _SideDrawerState of(BuildContext context, {bool nullOk = true}) {
+    assert(nullOk != null);
+    assert(context != null);
+    final _SideDrawerState result =
+        context.findAncestorStateOfType<_SideDrawerState>();
+    if (nullOk || result != null) return result;
+    throw FlutterError.fromParts(<DiagnosticsNode>[
+      ErrorSummary(
+          '_SideDrawerState.of() called with a context that does not contain a _SideDrawerState.'),
+      context.describeElement('The context used was')
+    ]);
   }
 }
 
@@ -389,8 +447,9 @@ class AnimatedMenuListItem extends ImplicitlyAnimatedWidget {
     this.menuState,
     this.isSelected,
     this.duration,
-    curve,
-  }) : super(duration: duration, curve: curve);
+    Curve curve,
+    Key key,
+  }) : super(key: key, duration: duration, curve: curve);
 
   @override
   _AnimatedMenuListItemState createState() => _AnimatedMenuListItemState();
@@ -401,14 +460,15 @@ class _AnimatedMenuListItemState
   final double closedSlidePosition = 200.0;
   final double openSlidePosition = 0.0;
 
+  _SideDrawerState get _sideDrawerState => _SideDrawerState.of(context);
+
   Tween<double> _translation;
   Tween<double> _opacity;
 
   updateSelectedRenderBox(bool useState) {
     final renderBox = context.findRenderObject() as RenderBox;
     if (renderBox != null && widget.isSelected) {
-      (menuScreenKey.currentState as _SideDrawerState)
-          .setSelectedRenderBox(renderBox, useState);
+      _sideDrawerState?.setSelectedRenderBox?.call(renderBox, useState);
     }
   }
 
@@ -541,7 +601,7 @@ class _MenuListItem extends StatelessWidget {
 class Menu<T> {
   final List<MenuItem<T>> items;
 
-  Menu({
+  const Menu({
     this.items,
   });
 }
